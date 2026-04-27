@@ -14,11 +14,12 @@ from config import (
     DEVICE,
     MODEL_PATH,
     BATCH_SIZE,
-    THRESHOLD
+    THRESHOLD,
+    TEST_CSV_PATH
 )
 
 from dataset import URLDataset, load_vocab
-from charcnn import CharCNN
+from model import CharCNN
 
 
 def evaluate():
@@ -27,7 +28,7 @@ def evaluate():
 
     # 2. test dataset 생성
     test_dataset = URLDataset(
-        csv_path="data/processed/test.csv",
+        csv_path=TEST_CSV_PATH,
         vocab=vocab
     )
 

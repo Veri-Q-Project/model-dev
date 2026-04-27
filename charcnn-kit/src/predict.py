@@ -5,7 +5,7 @@ import torch
 
 from config import DEVICE, MODEL_PATH, THRESHOLD
 from dataset import load_vocab, encode_url
-from charcnn import CharCNN
+from model import CharCNN
 from explain import get_xai_log
 
 

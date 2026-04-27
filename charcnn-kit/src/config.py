@@ -18,4 +18,15 @@ THRESHOLD = 0.5             # score가 0.5 이상이면 악성으로 판단
 
 VOCAB_PATH = "saved/char_vocab.json" # 문자 사전 저장 경로
 MODEL_PATH = "saved/charcnn.pt"      # 모델 저장 경로
-CSV_PATH = "data/sample.csv"         # csv파일 저장 경로
+
+# 데이터 경로 (README 구조)
+RAW_CSV_PATH = "data/raw/urls.csv"             # 원본 URL 데이터
+TRAIN_CSV_PATH = "data/processed/train.csv"    # 학습 데이터
+VALID_CSV_PATH = "data/processed/valid.csv"    # 검증 데이터
+TEST_CSV_PATH = "data/processed/test.csv"      # 평가 데이터
+
+# 전처리 설정
+TRAIN_RATIO = 0.8       # 학습 데이터 비율
+VALID_RATIO = 0.1       # 검증 데이터 비율
+TEST_RATIO = 0.1        # 평가 데이터 비율
+SEED = 42               # 재현성을 위한 random seed
