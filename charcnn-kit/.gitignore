@@ -6,6 +6,7 @@ __pycache__/
 # 생성물: 다운로드 스크립트로 재생성 가능
 data/raw/*.csv
 data/processed/*.csv
+data/phiusiil_columns_report.txt
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 

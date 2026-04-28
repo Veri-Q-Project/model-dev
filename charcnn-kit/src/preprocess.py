@@ -13,7 +13,11 @@ from config import (
     VALID_RATIO,
     TEST_RATIO,
     SEED,
+    URL_FEATURE_COLS,
+    HTML_FEATURE_COLS,
+    FEATURE_COLS,
 )
+from features import compute_url_features
 
 
 def _validate_ratios():
@@ -60,6 +64,29 @@ def _load_and_clean(raw_path: str) -> pd.DataFrame:
 
     # 5. 중복 url 제거 (동일 url에 다른 라벨이 있으면 첫 row만 유지)
     df = df.drop_duplicates(subset=["url"], keep="first").reset_index(drop=True)
+
+    # 6. URL 기반 feature는 학습/평가/추론 모두 같은 함수 정의를 쓰도록 재계산한다.
+    url_features = pd.DataFrame(
+        [compute_url_features(url) for url in df["url"]],
+        index=df.index,
+    )
+    for col in URL_FEATURE_COLS:
+        df[col] = url_features[col].astype("float32")
+
+    # HTML feature를 FEATURE_COLS에 다시 활성화한 경우, 직접 만든 url,label CSV처럼
+    # 값이 없으면 0으로 채워 학습을 계속 진행할 수 있게 한다.
+    active_html = [c for c in HTML_FEATURE_COLS if c in FEATURE_COLS]
+    missing_html = [c for c in active_html if c not in df.columns]
+    if missing_html:
+        for col in missing_html:
+            df[col] = 0.0
+        print(f"[features] missing HTML features filled with 0.0: {missing_html}")
+
+    # 7. tabular feature NaN row 제거 (주로 HTML feature 안전망)
+    before_feat = len(df)
+    df = df.dropna(subset=FEATURE_COLS).reset_index(drop=True)
+    if len(df) < before_feat:
+        print(f"[clean] feature NaN row {before_feat - len(df)}개 추가 제거")
 
     after = len(df)
     print(f"[clean] {before} -> {after} rows ({before - after}개 제거)")
