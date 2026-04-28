@@ -32,6 +32,11 @@ VALID_RATIO = 0.1       # 검증 데이터 비율
 TEST_RATIO = 0.1        # 평가 데이터 비율
 SEED = 42               # 재현성을 위한 random seed
 
+# === OOD 평가 ===
+OOD_CSV_PATH = "data/ood/ood_test.csv"         # 외부 출처 OOD 평가 데이터
+OOD_SAMPLE_PER_CLASS = 5000  # OOD 평가셋 클래스별 샘플 수
+OOD_BENIGN_TOP_N = 100000    # Tranco 정상 후보를 상위 N개 도메인으로 제한
+
 # === 혼합 학습셋 / hard example 재학습 ===
 HARD_EXAMPLES_PATH = "data/hard_examples/hard_examples.csv"  # OOD 오분류 누적 저장
 MIXED_PHIUSIIL_PER_CLASS = 25000  # 혼합 학습셋 PhiUSIIL 클래스별 샘플 수
