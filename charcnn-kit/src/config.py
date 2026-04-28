@@ -32,6 +32,17 @@ VALID_RATIO = 0.1       # 검증 데이터 비율
 TEST_RATIO = 0.1        # 평가 데이터 비율
 SEED = 42               # 재현성을 위한 random seed
 
+# === 혼합 학습셋 / hard example 재학습 ===
+HARD_EXAMPLES_PATH = "data/hard_examples/hard_examples.csv"  # OOD 오분류 누적 저장
+MIXED_PHIUSIIL_PER_CLASS = 25000  # 혼합 학습셋 PhiUSIIL 클래스별 샘플 수
+MIXED_URLHAUS_SAMPLES = 15000     # 혼합 학습셋 URLhaus 악성 샘플 수
+MIXED_OPENPHISH_SAMPLES = 5000    # 혼합 학습셋 OpenPhish 악성 샘플 수
+MIXED_PHISHTANK_SAMPLES = 10000   # 혼합 학습셋 PhishTank 악성 샘플 수
+MIXED_TRANCO_SAMPLES = 40000      # 혼합 학습셋 Tranco 정상 샘플 수
+MIXED_TRANCO_TOP_N = 100000       # 혼합 학습용 Tranco 정상 후보 상위 N개
+DYNAMIC_AUG_PER_CLASS = 5000      # 동적 URL(query/path/token) synthetic augmentation 수
+HARD_EXAMPLES_MAX_PER_CLASS = 2000   # 재학습에 섞을 hard example 클래스별 최대 수
+
 # === Tabular feature 통합 (이슈 #3) ===
 # URL 문자열만으로 즉시 계산 가능 → 학습/평가/추론 모두에서 사용
 URL_FEATURE_COLS = [
