@@ -14,11 +14,12 @@ from config import (
     DEVICE,
     MODEL_PATH,
     BATCH_SIZE,
-    THRESHOLD
+    THRESHOLD,
+    TEST_CSV_PATH
 )
 
 from dataset import URLDataset, load_vocab
-from charcnn import CharCNN
+from model import CharCNN
 
 
 def evaluate():
@@ -27,7 +28,7 @@ def evaluate():
 
     # 2. test dataset 생성
     test_dataset = URLDataset(
-        csv_path="data/processed/test.csv",
+        csv_path=TEST_CSV_PATH,
         vocab=vocab
     )
 
@@ -46,6 +47,7 @@ def evaluate():
 
     y_true = []
     y_pred = []
+    y_score = []
 
     # 4. 예측
     with torch.no_grad():
@@ -59,6 +61,7 @@ def evaluate():
 
             y_true.extend(y.int().tolist())
             y_pred.extend(preds)
+            y_score.extend(scores.cpu().tolist())
 
     # 5. 지표 계산
     acc = accuracy_score(y_true, y_pred)
@@ -74,6 +77,25 @@ def evaluate():
     print(f"F1 Score : {f1:.4f}")       # precision+recall 균형 점수
     print("Confusion Matrix:")
     print(cm)
+
+    # 6. 오분류 사례 출력 (FN: 악성을 정상으로, FP: 정상을 악성으로)
+    urls = test_dataset.df["url"].tolist()
+    fn_cases = []   # 미탐 (실제 1, 예측 0)
+    fp_cases = []   # 오탐 (실제 0, 예측 1)
+    for url, t, p, s in zip(urls, y_true, y_pred, y_score):
+        if t == 1 and p == 0:
+            fn_cases.append((s, url))
+        elif t == 0 and p == 1:
+            fp_cases.append((s, url))
+
+    print(f"\n=== False Negatives (미탐: 악성을 정상으로 판단) [{len(fn_cases)}건] ===")
+    # 점수 높은 순(0.5에 가까웠던 것부터)으로 출력
+    for s, url in sorted(fn_cases, key=lambda x: -x[0]):
+        print(f"  score={s:.4f}  {url}")
+
+    print(f"\n=== False Positives (오탐: 정상을 악성으로 판단) [{len(fp_cases)}건] ===")
+    for s, url in sorted(fp_cases, key=lambda x: -x[0]):
+        print(f"  score={s:.4f}  {url}")
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@ import json
 import pandas as pd
 import torch
 from torch.utils.data import Dataset
-from config import MAX_LEN, VOCAB_PATH, CSV_PATH
+from config import MAX_LEN, VOCAB_PATH
 
 
 PAD_TOKEN = "<PAD>"
@@ -57,7 +57,7 @@ def encode_url(url, vocab, max_len=MAX_LEN):
 # pytorch dataloader가 읽을 수 있는 url데이터셋 클래스
 # 각 데이터는 (url 숫자 배열, label) 형으로 반환됨
 class URLDataset(Dataset):
-    def __init__(self, csv_path=CSV_PATH, vocab=None, build_new_vocab=False):
+    def __init__(self, csv_path, vocab=None, build_new_vocab=False):
         self.df = pd.read_csv(csv_path)
 
         self.df = self.df.dropna(subset=["url", "label"])

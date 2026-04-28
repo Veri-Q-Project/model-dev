@@ -79,16 +79,18 @@ http://paypa1-login.xyz,1
 
 실제 코드 폴더입니다.
 
-| 파일명           | 역할             |
-| ------------- | -------------- |
-| config.py     | 설정값 관리         |
-| preprocess.py | 데이터 정리 및 분할    |
-| dataset.py    | URL → 숫자 배열 변환 |
-| model.py      | CharCNN 모델 구조  |
-| train.py      | 모델 학습          |
-| evaluate.py   | 성능 평가          |
-| predict.py    | URL 단일 예측      |
-| explain.py    | XAI 로그 기능      |
+| 파일명                  | 역할                                |
+| -------------------- | --------------------------------- |
+| config.py            | 설정값 관리                            |
+| preprocess.py        | 데이터 정리 및 train/valid/test stratified 분할 |
+| dataset.py           | URL → 숫자 배열 변환                    |
+| model.py             | CharCNN 모델 구조                     |
+| train.py             | 모델 학습 (early stopping + best-model 저장) |
+| evaluate.py          | 성능 평가 + FN/FP 사례 출력               |
+| predict.py           | URL 단일 예측                         |
+| explain.py           | XAI 로그 기능                         |
+| download_phiusiil.py | UCI PhiUSIIL 데이터셋 다운로드 (추천)       |
+| download_data.py     | URLhaus + Tranco 데이터 다운로드 (대안)    |
 
 ---
 
@@ -104,7 +106,7 @@ pip install -r requirements.txt
 
 ### 2단계. 데이터 준비
 
-`data/raw/urls.csv`
+`data/raw/urls.csv` 파일이 필요합니다.
 
 형식:
 
@@ -118,6 +120,22 @@ http://paypa1-login.xyz,1
 
 * `0` = 정상
 * `1` = 악성
+
+#### 옵션 A. 공개 데이터셋 자동 다운로드 (추천)
+
+UCI ML PhiUSIIL Phishing URL Dataset (235k URL)에서 5만개 균형 샘플링:
+
+```bash
+python src/download_phiusiil.py
+```
+
+실행 결과: `data/raw/urls.csv` (악성 25,000 / 정상 25,000)
+
+> 다른 소스도 가능: `python src/download_data.py` (URLhaus + Tranco). 다만 두 소스 형식 차이로 모델이 trivially 분리되어 baseline용으론 비추천.
+
+#### 옵션 B. 직접 작성
+
+CSV 형식에 맞춰 `data/raw/urls.csv`를 수동으로 채워도 됩니다.
 
 ---
 
@@ -153,12 +171,17 @@ saved/char_vocab.json
 예상 로그:
 
 ```text
-Epoch 1 train_loss: 0.68
-Epoch 2 train_loss: 0.55
-Epoch 3 train_loss: 0.42
+Epoch [1/20] train_loss: 0.0288 | valid_loss: 0.0176  *best
+Epoch [2/20] train_loss: 0.0162 | valid_loss: 0.0173  *best
+Epoch [3/20] train_loss: 0.0129 | valid_loss: 0.0159  *best
+...
+Early stopping triggered at epoch 8 (best epoch: 5, ...)
+Saved best model (epoch 5, valid_loss 0.0142) to saved/charcnn.pt
 ```
 
-loss가 감소하면 정상입니다.
+* train_loss가 감소하면 정상입니다.
+* valid_loss가 PATIENCE epoch 동안 개선이 없으면 early stopping이 종료시킵니다.
+* 종료 시점에 저장되는 모델은 **valid_loss가 가장 낮았던 시점의 best 모델**입니다 (마지막 epoch이 아님).
 
 ---
 
@@ -171,11 +194,23 @@ python src/evaluate.py
 출력 예:
 
 ```text
-Accuracy : 0.91
-Precision: 0.88
-Recall   : 0.94
-F1 Score : 0.91
+=== Evaluation Result ===
+Accuracy : 0.9982
+Precision: 1.0000
+Recall   : 0.9964
+F1 Score : 0.9982
+Confusion Matrix:
+[[2500    0]
+ [   9 2489]]
+
+=== False Negatives (미탐: 악성을 정상으로 판단) [9건] ===
+  score=0.2706  https://www.vmailmessage.com
+  ...
+
+=== False Positives (오탐: 정상을 악성으로 판단) [0건] ===
 ```
+
+* 지표 외에 **FN/FP 사례가 score와 함께 출력**되어 모델이 어떤 URL을 놓쳤는지 분석 가능합니다.
 
 ---
 
@@ -219,7 +254,8 @@ python src/predict.py --url "http://paypa1-login.xyz" --xai
 ```python
 MAX_LEN
 BATCH_SIZE
-EPOCHS
+EPOCHS         # 최대 에폭 (early stopping이 실제 종료 시점 결정)
+PATIENCE       # early stopping: valid_loss가 N epoch 동안 개선 없으면 중단
 LEARNING_RATE
 EMBED_DIM
 NUM_FILTERS

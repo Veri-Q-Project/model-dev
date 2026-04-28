@@ -1,1 +1,15 @@
-charcnn/
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# 생성물: 다운로드 스크립트로 재생성 가능
+data/raw/*.csv
+data/processed/*.csv
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# 학습 산출물: train.py로 재생성 가능
+saved/*.pt
+saved/*.json
+!saved/.gitkeep
