@@ -42,6 +42,8 @@ MIXED_TRANCO_SAMPLES = 40000      # 혼합 학습셋 Tranco 정상 샘플 수
 MIXED_TRANCO_TOP_N = 100000       # 혼합 학습용 Tranco 정상 후보 상위 N개
 DYNAMIC_AUG_PER_CLASS = 5000      # 동적 URL(query/path/token) synthetic augmentation 수
 HARD_EXAMPLES_MAX_PER_CLASS = 2000   # 재학습에 섞을 hard example 클래스별 최대 수
+USE_DOMAIN_GROUP_SPLIT = True     # 같은 등록 도메인이 train/valid/test에 섞이지 않게 분할
+FORCE_HARD_EXAMPLES_TO_TRAIN = True  # hard example 도메인 group은 train에 고정
 
 # === Tabular feature 통합 (이슈 #3) ===
 # URL 문자열만으로 즉시 계산 가능 → 학습/평가/추론 모두에서 사용
