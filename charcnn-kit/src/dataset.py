@@ -1,5 +1,7 @@
 # url 문자열을 문자 단위 숫자 배열로 변환
+# (이슈 #3) feature_cols가 주어지면 tabular feature도 함께 반환
 import json
+import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import Dataset
@@ -55,9 +57,16 @@ def encode_url(url, vocab, max_len=MAX_LEN):
 
 
 # pytorch dataloader가 읽을 수 있는 url데이터셋 클래스
-# 각 데이터는 (url 숫자 배열, label) 형으로 반환됨
+# 기본: (url 숫자 배열, label)
+# feature_cols 지정 시: (url 숫자 배열, tabular feature 벡터, label)
 class URLDataset(Dataset):
-    def __init__(self, csv_path, vocab=None, build_new_vocab=False):
+    def __init__(
+        self,
+        csv_path,
+        vocab=None,
+        build_new_vocab=False,
+        feature_cols=None,
+    ):
         self.df = pd.read_csv(csv_path)
 
         self.df = self.df.dropna(subset=["url", "label"])
@@ -71,6 +80,30 @@ class URLDataset(Dataset):
                 raise ValueError("vocab이 필요합니다.")
             self.vocab = vocab
 
+        self.feature_cols = list(feature_cols) if feature_cols else None
+        if self.feature_cols:
+            missing = [c for c in self.feature_cols if c not in self.df.columns]
+            if missing:
+                raise ValueError(f"CSV에 feature 컬럼이 없습니다: {missing}")
+            # 결측 row를 추가로 떨어뜨림 (preprocess에서 이미 처리되지만 안전망)
+            self.df = self.df.dropna(subset=self.feature_cols).reset_index(drop=True)
+            self.features = (
+                self.df[self.feature_cols].astype("float32").to_numpy()
+            )
+        else:
+            self.features = None
+
+    def apply_normalization(self, mean: np.ndarray, std: np.ndarray):
+        """학습 데이터로 fit한 mean/std로 features를 표준화 (in-place).
+
+        표준화: (x - mean) / std → 각 feature를 평균 0, 표준편차 1로 맞춰
+        스케일이 다른 컬럼들이 학습을 망가뜨리지 않게 함.
+        """
+        if self.features is None:
+            raise RuntimeError("feature_cols 없이 정규화는 불가합니다.")
+        std_safe = np.where(std == 0, 1.0, std)
+        self.features = ((self.features - mean) / std_safe).astype("float32")
+
     def __len__(self):
         return len(self.df)
 
@@ -79,8 +112,11 @@ class URLDataset(Dataset):
         label = self.df.iloc[idx]["label"]
 
         x = encode_url(url, self.vocab)
-
         x = torch.tensor(x, dtype=torch.long)
         y = torch.tensor(label, dtype=torch.float32)
 
-        return x, y
+        if self.features is None:
+            return x, y
+
+        f = torch.from_numpy(self.features[idx])
+        return x, f, y

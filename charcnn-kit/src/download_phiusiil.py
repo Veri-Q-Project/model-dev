@@ -12,7 +12,7 @@ import urllib.request
 
 import pandas as pd
 
-from config import RAW_CSV_PATH, SEED
+from config import RAW_CSV_PATH, SEED, FEATURE_COLS
 
 PHIUSIIL_ZIP_URL = (
     "https://archive.ics.uci.edu/static/public/967/"
@@ -66,8 +66,16 @@ def main():
     dist = df["label"].value_counts().to_dict()
     print(f"PhiUSIIL label dist (raw): {dist}")
 
-    df_out = df[[url_col, "label"]].copy()
-    df_out.columns = ["url", "label"]
+    # 이슈 #3: URL/label 외에 학습에 사용할 tabular feature 컬럼도 함께 보존
+    missing_feat = [c for c in FEATURE_COLS if c not in df.columns]
+    if missing_feat:
+        raise RuntimeError(
+            f"PhiUSIIL CSV에 기대한 feature 컬럼이 없습니다: {missing_feat}"
+        )
+
+    keep_cols = [url_col, "label"] + FEATURE_COLS
+    df_out = df[keep_cols].copy()
+    df_out.rename(columns={url_col: "url"}, inplace=True)
 
     # 라벨 반전: PhiUSIIL(1=legit, 0=phish) -> 본 프로젝트(0=정상, 1=악성)
     df_out["label"] = 1 - df_out["label"].astype(int)

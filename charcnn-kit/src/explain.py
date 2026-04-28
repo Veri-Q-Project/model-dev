@@ -6,13 +6,14 @@ import torch
 from captum.attr import LayerIntegratedGradients
 
 
-def get_xai_log(model, x, url: str, top_k: int = 10) -> dict:
+def get_xai_log(model, x, url: str, top_k: int = 10, additional_forward_args=None) -> dict:
 
     lig = LayerIntegratedGradients(model, model.embedding)
 
     attributions = lig.attribute(
         inputs=x,
-        baselines=torch.zeros_like(x)
+        baselines=torch.zeros_like(x),
+        additional_forward_args=additional_forward_args,
     )
 
     # [1, MAX_LEN, EMBED_DIM] -> [MAX_LEN]

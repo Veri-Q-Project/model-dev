@@ -1,8 +1,10 @@
 # 원본 url 데이터를 학습/검증/평가용으로 분할
 # data/raw/urls.csv -> data/processed/{train,valid,test}.csv
 import os
+from urllib.parse import urlparse
+
 import pandas as pd
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import StratifiedGroupKFold, train_test_split
 
 from config import (
     RAW_CSV_PATH,
@@ -13,7 +15,13 @@ from config import (
     VALID_RATIO,
     TEST_RATIO,
     SEED,
+    FORCE_HARD_EXAMPLES_TO_TRAIN,
+    USE_DOMAIN_GROUP_SPLIT,
+    URL_FEATURE_COLS,
+    HTML_FEATURE_COLS,
+    FEATURE_COLS,
 )
+from features import compute_url_features
 
 
 def _validate_ratios():
@@ -61,6 +69,29 @@ def _load_and_clean(raw_path: str) -> pd.DataFrame:
     # 5. 중복 url 제거 (동일 url에 다른 라벨이 있으면 첫 row만 유지)
     df = df.drop_duplicates(subset=["url"], keep="first").reset_index(drop=True)
 
+    # 6. URL 기반 feature는 학습/평가/추론 모두 같은 함수 정의를 쓰도록 재계산한다.
+    url_features = pd.DataFrame(
+        [compute_url_features(url) for url in df["url"]],
+        index=df.index,
+    )
+    for col in URL_FEATURE_COLS:
+        df[col] = url_features[col].astype("float32")
+
+    # HTML feature를 FEATURE_COLS에 다시 활성화한 경우, 직접 만든 url,label CSV처럼
+    # 값이 없으면 0으로 채워 학습을 계속 진행할 수 있게 한다.
+    active_html = [c for c in HTML_FEATURE_COLS if c in FEATURE_COLS]
+    missing_html = [c for c in active_html if c not in df.columns]
+    if missing_html:
+        for col in missing_html:
+            df[col] = 0.0
+        print(f"[features] missing HTML features filled with 0.0: {missing_html}")
+
+    # 7. tabular feature NaN row 제거 (주로 HTML feature 안전망)
+    before_feat = len(df)
+    df = df.dropna(subset=FEATURE_COLS).reset_index(drop=True)
+    if len(df) < before_feat:
+        print(f"[clean] feature NaN row {before_feat - len(df)}개 추가 제거")
+
     after = len(df)
     print(f"[clean] {before} -> {after} rows ({before - after}개 제거)")
 
@@ -68,6 +99,11 @@ def _load_and_clean(raw_path: str) -> pd.DataFrame:
 
 
 def _stratified_split(df: pd.DataFrame):
+    if USE_DOMAIN_GROUP_SPLIT:
+        grouped = _domain_group_split(df)
+        if grouped is not None:
+            return grouped
+
     # train vs (valid+test)
     rest_ratio = VALID_RATIO + TEST_RATIO
     train_df, rest_df = train_test_split(
@@ -87,6 +123,75 @@ def _stratified_split(df: pd.DataFrame):
     )
 
     return train_df, valid_df, test_df
+
+
+def _domain_group(url: str) -> str:
+    parsed = urlparse(url if "://" in url else "http://" + url)
+    host = (parsed.hostname or str(url)).lower().strip(".")
+    if host.startswith("www."):
+        host = host[4:]
+
+    labels = [p for p in host.split(".") if p]
+    if len(labels) <= 2:
+        return host
+
+    # 간단한 eTLD+1 근사. publicsuffix 없이 흔한 ccTLD 2단계 도메인 누수만 줄인다.
+    second_level = {"ac", "co", "com", "edu", "go", "gov", "ne", "net", "or", "org"}
+    if len(labels[-1]) == 2 and labels[-2] in second_level and len(labels) >= 3:
+        return ".".join(labels[-3:])
+    return ".".join(labels[-2:])
+
+
+def _domain_group_split(df: pd.DataFrame):
+    groups = df["url"].map(_domain_group)
+    n_groups = groups.nunique()
+    if n_groups < 10:
+        print(f"[split] domain group split skipped: only {n_groups} groups")
+        return None
+
+    # 10-fold로 나눈 뒤 1 fold=test, 1 fold=valid, 나머지=train.
+    # 같은 등록 도메인이 서로 다른 split에 섞이지 않는다.
+    splitter = StratifiedGroupKFold(n_splits=10, shuffle=True, random_state=SEED)
+    fold_id = pd.Series(-1, index=df.index)
+    for fold, (_, test_idx) in enumerate(splitter.split(df, df["label"], groups)):
+        fold_id.iloc[test_idx] = fold
+
+    if (fold_id < 0).any():
+        print("[split] domain group split failed; falling back to row split")
+        return None
+
+    hard_groups = set()
+    if FORCE_HARD_EXAMPLES_TO_TRAIN and "source" in df.columns:
+        source = df["source"].fillna("").astype(str)
+        hard_groups = set(groups[source.str.startswith("hard_")])
+        if hard_groups:
+            fold_id.loc[groups.isin(hard_groups)] = 2
+            print(f"[split] forced hard example groups to train: {len(hard_groups)}")
+
+    test_df = df[fold_id == 0].copy()
+    valid_df = df[fold_id == 1].copy()
+    train_df = df[fold_id >= 2].copy()
+
+    for name, part in [("train", train_df), ("valid", valid_df), ("test", test_df)]:
+        if len(part) == 0 or part["label"].nunique() < 2:
+            print(f"[split] domain group split invalid for {name}; falling back to row split")
+            return None
+
+    train_groups = set(groups.loc[train_df.index])
+    valid_groups = set(groups.loc[valid_df.index])
+    test_groups = set(groups.loc[test_df.index])
+    overlap = (
+        len(train_groups & valid_groups)
+        + len(train_groups & test_groups)
+        + len(valid_groups & test_groups)
+    )
+    print(f"[split] domain group split enabled: groups={n_groups}, overlap={overlap}")
+
+    return (
+        train_df.reset_index(drop=True),
+        valid_df.reset_index(drop=True),
+        test_df.reset_index(drop=True),
+    )
 
 
 def _report(name: str, df: pd.DataFrame):

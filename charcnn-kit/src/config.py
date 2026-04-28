@@ -15,7 +15,7 @@ DROPOUT = 0.3               # 드롭아웃 비율: 학습 중 몇%의 뉴련을 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 # pridict
-THRESHOLD = 0.5             # score가 0.5 이상이면 악성으로 판단
+THRESHOLD = 0.2             # score가 0.2 이상이면 악성으로 판단 (FN/FP 균형)
 
 VOCAB_PATH = "saved/char_vocab.json" # 문자 사전 저장 경로
 MODEL_PATH = "saved/charcnn.pt"      # 모델 저장 경로
@@ -31,3 +31,66 @@ TRAIN_RATIO = 0.8       # 학습 데이터 비율
 VALID_RATIO = 0.1       # 검증 데이터 비율
 TEST_RATIO = 0.1        # 평가 데이터 비율
 SEED = 42               # 재현성을 위한 random seed
+
+# === OOD 평가 ===
+OOD_CSV_PATH = "data/ood/ood_test.csv"         # 외부 출처 OOD 평가 데이터
+OOD_SAMPLE_PER_CLASS = 5000  # OOD 평가셋 클래스별 샘플 수
+OOD_BENIGN_TOP_N = 100000    # Tranco 정상 후보를 상위 N개 도메인으로 제한
+
+# === 혼합 학습셋 / hard example 재학습 ===
+HARD_EXAMPLES_PATH = "data/hard_examples/hard_examples.csv"  # OOD 오분류 누적 저장
+MIXED_PHIUSIIL_PER_CLASS = 25000  # 혼합 학습셋 PhiUSIIL 클래스별 샘플 수
+MIXED_URLHAUS_SAMPLES = 15000     # 혼합 학습셋 URLhaus 악성 샘플 수
+MIXED_OPENPHISH_SAMPLES = 5000    # 혼합 학습셋 OpenPhish 악성 샘플 수
+MIXED_PHISHTANK_SAMPLES = 10000   # 혼합 학습셋 PhishTank 악성 샘플 수
+MIXED_TRANCO_SAMPLES = 40000      # 혼합 학습셋 Tranco 정상 샘플 수
+MIXED_TRANCO_TOP_N = 100000       # 혼합 학습용 Tranco 정상 후보 상위 N개
+DYNAMIC_AUG_PER_CLASS = 5000      # 동적 URL(query/path/token) synthetic augmentation 수
+HARD_EXAMPLES_MAX_PER_CLASS = 2000   # 재학습에 섞을 hard example 클래스별 최대 수
+USE_DOMAIN_GROUP_SPLIT = True     # 같은 등록 도메인이 train/valid/test에 섞이지 않게 분할
+FORCE_HARD_EXAMPLES_TO_TRAIN = True  # hard example 도메인 group은 train에 고정
+
+# === Tabular feature 통합 (이슈 #3) ===
+# URL 문자열만으로 즉시 계산 가능 → 학습/평가/추론 모두에서 사용
+URL_FEATURE_COLS = [
+    "IsHTTPS",
+    "URLLength",
+    "DomainLength",
+    "NoOfSubDomain",
+    "IsDomainIP",
+    "TLDLength",
+    "NoOfLettersInURL",
+    "LetterRatioInURL",
+    "NoOfDegitsInURL",          # PhiUSIIL 원본 오타 그대로
+    "DegitRatioInURL",
+    "SpacialCharRatioInURL",
+    "NoOfOtherSpecialCharsInURL",
+    "HasObfuscation",
+    "NoOfEqualsInURL",
+    "NoOfQMarkInURL",
+    "NoOfAmpersandInURL",
+    "NoOfAtInURL",
+    "NoOfDashInURL",
+    "NoOfDotInURL",
+    "NoOfPercentInURL",
+    "PathLength",
+    "QueryLength",
+    "NoOfPathSegments",
+    "NoOfQueryParams",
+    "HasFragment",
+]
+# HTML/페이지 분석이 필요 → 학습/평가만 PhiUSIIL 사전계산값 사용,
+# 단일 URL 추론에서는 train mean으로 imputation
+# 주의: URLSimilarityIndex는 라벨과 |corr|=0.86으로 cheat-feature이라 제외함
+#       (이슈 #3 ablation 결과; 다시 추가하지 말 것)
+HTML_FEATURE_COLS = [
+    "HasSocialNet",
+    "HasCopyrightInfo",
+    "HasDescription",
+]
+# 현재 배포/외부 평가에서는 HTML을 실제 fetch하지 않으므로 URL 기반 feature만 사용한다.
+# HTML feature를 다시 쓰려면 predict/evaluate_ood에서도 동일 feature를 계산해야 한다.
+FEATURE_COLS = URL_FEATURE_COLS
+
+FEATURE_NORM_PATH = "saved/feature_norm.json"  # 학습 데이터의 mean/std 저장
+TABULAR_HIDDEN = 32                            # tabular 분기의 hidden 차원
