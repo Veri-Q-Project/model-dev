@@ -3,7 +3,8 @@ import torch
 
 MAX_LEN = 200               # URL 최대 길이
 BATCH_SIZE = 32             # 배치 크기: 한번에 몇 개 데이터를 묶어 학습할것인가
-EPOCHS = 10                 # 에폭 수: 전체 학습 데이터를 몇 번 반복 학습할지 (너무 많을시 과적합 발생 가능)
+EPOCHS = 20                 # 최대 에폭 수: early stopping이 실제 종료를 결정함
+PATIENCE = 3                # early stopping: valid_loss가 N epoch 동안 개선 없으면 중단
 LEARNING_RATE = 0.001       # 학습률: 한 번 업데이트 시 얼마나 수정을 거칠지
 EMBED_DIM = 64              # 문자 임베딩 차원 수: 각 문자를 몇 개 숫자로 표현할지
 NUM_FILTERS = 128           # CNN 필터 수 = url 패턴 찾는 탐지기 수 (너무 많을시 과적합 발생 가능)

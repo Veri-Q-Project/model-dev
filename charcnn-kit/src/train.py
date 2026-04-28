@@ -1,4 +1,5 @@
 # 모델 학습 및 학습 결과와 완료된 모델을 저장함
+import copy
 import os
 import torch
 import torch.nn as nn
@@ -7,6 +8,7 @@ from torch.utils.data import DataLoader
 from config import (
     BATCH_SIZE,
     EPOCHS,
+    PATIENCE,
     LEARNING_RATE,
     DEVICE,
     MODEL_PATH,
@@ -56,7 +58,12 @@ def train():
         lr=LEARNING_RATE
     )
 
-    # 8. 학습 루프
+    # 8. 학습 루프 (early stopping + best model 추적)
+    best_valid_loss = float("inf")
+    best_state = None
+    best_epoch = 0
+    patience_counter = 0
+
     for epoch in range(EPOCHS):
         model.train()
         total_loss = 0.0
@@ -95,14 +102,39 @@ def train():
                 valid_loss += criterion(logits, y).item()
         avg_valid_loss = valid_loss / max(len(valid_loader), 1)
 
+        # best 모델 갱신 / patience 체크
+        if avg_valid_loss < best_valid_loss:
+            best_valid_loss = avg_valid_loss
+            best_state = copy.deepcopy(model.state_dict())
+            best_epoch = epoch + 1
+            patience_counter = 0
+            marker = "  *best"
+        else:
+            patience_counter += 1
+            marker = f"  (no improve {patience_counter}/{PATIENCE})"
+
         print(
             f"Epoch [{epoch + 1}/{EPOCHS}] "
             f"train_loss: {avg_loss:.4f} | valid_loss: {avg_valid_loss:.4f}"
+            f"{marker}"
         )
 
-    # 9. 모델 저장
+        if patience_counter >= PATIENCE:
+            print(
+                f"Early stopping triggered at epoch {epoch + 1} "
+                f"(best epoch: {best_epoch}, best valid_loss: {best_valid_loss:.4f})"
+            )
+            break
+
+    # 9. best 모델 복원 후 저장
+    if best_state is None:
+        raise RuntimeError("학습된 모델 state가 없습니다.")
+    model.load_state_dict(best_state)
     torch.save(model.state_dict(), MODEL_PATH)
-    print(f"Model saved to {MODEL_PATH}")
+    print(
+        f"Saved best model (epoch {best_epoch}, "
+        f"valid_loss {best_valid_loss:.4f}) to {MODEL_PATH}"
+    )
     print(f"Vocab saved to {VOCAB_PATH}")
 
 
